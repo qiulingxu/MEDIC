@@ -42,3 +42,19 @@ We test the code on Ubuntu 18.04, Pytorch 1.7.1.
 We require the specific dependent of package TrojAI for testing on Trojai model, https://pages.nist.gov/trojai/.
 
 If you don't have that need, please feel free to comment out the trojai import.
+
+# Paper and citation
+
+Paper can be found [here](https://openaccess.thecvf.com/content/CVPR2023/html/Xu_MEDIC_Remove_Model_Backdoors_via_Importance_Driven_Cloning_CVPR_2023_paper.html).
+
+You are welcome to cite the paper if you find our work useful.
+```
+@InProceedings{Xu_2023_CVPR,
+    author    = {Xu, Qiuling and Tao, Guanhong and Honorio, Jean and Liu, Yingqi and An, Shengwei and Shen, Guangyu and Cheng, Siyuan and Zhang, Xiangyu},
+    title     = {MEDIC: Remove Model Backdoors via Importance Driven Cloning},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2023},
+    pages     = {20485-20494}
+}
+```
