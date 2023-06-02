@@ -1,0 +1,5 @@
+model nin_trojan_composite_5_0_1_2_mix_3.h5 acc 0.840600013733 attack acc 0.940999984741
+model nin_trojan_composite_5_2_3_4_mix_3.h5 acc 0.855799973011 attack acc 0.867999970913
+model nin_trojan_composite_5_4_5_6_mix_3.h5 acc 0.850300014019 attack acc 0.889999985695
+model nin_trojan_composite_5_6_7_8_mix_3.h5 acc 0.860599994659 attack acc 0.922999978065
+model nin_trojan_composite_5_8_9_0_mix_3.h5 acc 0.842100024223 attack acc 0.955999970436
