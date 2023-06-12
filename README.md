@@ -1,4 +1,4 @@
-# MEDIC Trigger Removal
+# MEDIC: Machine Learning Backdoor Trigger Removal
 
 MEDIC is a retraining based backdoor removal method. It uses layer-wise cloning with importance. It exhibits strong advantage over strong backdoors, e.g. the adversarial trained ones with data augmentation.
 
