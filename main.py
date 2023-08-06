@@ -10,7 +10,7 @@ import sys
 import copy
 import json
 from config import get_arguments
-from hook import Hook, hookwisemse, hookwisemse_imp_sample, hookwisemse_at, hookwisemse_imp_sample_fast, hookwisemse_imp_sample_l1
+from hook import Hook, hookwisemse, hookwisemse_imp_sample, hookwisemse_at
 from timeit import default_timer as timer
 from prune import prune
 from functools import partial
@@ -23,11 +23,10 @@ def loss_fn_kd(outputs, labels, teacher_outputs, params):
     NOTE: the KL Divergence for PyTorch comparing the softmaxs of teacher
     and student expects the input tensor to be log probabilities! See Issue #2
     """
-    alpha = 1.0#0.5#params.alpha
-    T = 2#params.temperature
+    alpha = 1.0
+    T = 2
     KD_loss = nn.KLDivLoss()(F.log_softmax(outputs/T, dim=1),
-                             F.softmax(teacher_outputs/T, dim=1)) * (alpha * T * T) #+ \
-              #F.cross_entropy(outputs, labels) * (1. - alpha)
+                             F.softmax(teacher_outputs/T, dim=1)) * (alpha * T * T)
 
     return KD_loss
 
@@ -75,40 +74,22 @@ def train_step(opt, train_loader, nets, optimizer, criterions, epoch):
             output_t = tnet(img)
         at_loss = T.tensor(0.).cuda()
         if opt.lwf:        
-            if opt.li:
-                bs = list(img.size())[0]
-                with T.no_grad():
-                    indx = T.randperm(bs)
-                    s_img = img[indx, :, :, :]
-                    s_label = target[indx].float()
-                    alpha = T.rand((bs,)).cuda()
-                    alpha_img = alpha.view((-1,1,1,1))
-                    mix_img = alpha_img*img + (1-alpha_img)*s_img
-                    mix_label = alpha*target + (1-alpha)*s_label
-                mix_output_s = snet(mix_img)
-                mix_output_t = tnet(mix_img)
-                at_loss += loss_fn_kd(mix_output_s, target, mix_output_t, None)
             at_loss += loss_fn_kd(output_s, target, output_t, None) * opt.hookweight
         cls_loss = criterionCls(output_s, target)
         if opt.hook and epoch>=opt.clone_start and epoch<=opt.clone_end:
             if opt.isample == "l2":
                 _cls_loss = criterionCls(output_t, target) + cls_loss
                 hk_loss = hookwisemse_imp_sample(h1, h2, _cls_loss)
-            elif opt.isample == "l1":
-                _cls_loss = criterionCls(output_t, target) + cls_loss
-                hk_loss = hookwisemse_imp_sample_l1(h1, h2, _cls_loss)
             elif opt.isample == "":
                 hk_loss = hookwisemse(h1, h2)
             elif opt.isample == "at":
                 hk_loss = hookwisemse_at(h1, h2)
-            elif opt.isample == "l2f":
-                _cls_loss = criterionCls(output_t, target) + cls_loss
-                hk_loss = hookwisemse_imp_sample_fast(h1, h2, _cls_loss)
             else:
                 assert False
             at_loss += hk_loss * config.opt.hookweight
         else:
             hk_loss = T.zeros((1,))
+        # For comparing NAD
         if float(opt.beta3)!= 0.:
             at3_loss = criterionAT(snet.activation3, tnet.activation3) * opt.beta3
         else:
@@ -145,7 +126,6 @@ def train_step(opt, train_loader, nets, optimizer, criterions, epoch):
                     indp = rv - parrallel 
                     param.grad.data = indp.detach()
         optimizer.step()
-        #print(idx, opt.print_freq)
         if idx % opt.print_freq == 0:
             print('Epoch[{0}]:[{1:03}/{2:03}] '
                   'AT_loss:{losses.val:.4f}({losses.avg:.4f})  '
@@ -163,14 +143,11 @@ def test(opt, test_clean_loader, test_bad_loader, nets, criterions, epoch):
     #tnet = nets['tnet']
 
     criterionCls = criterions['criterionCls']
-    #criterionAT = criterions['criterionAT']
 
     snet.eval()
-    #print(len(test_clean_loader))
     for idx, (img, target) in enumerate(test_clean_loader, start=1):
         img = img.cuda()
         target = target.cuda()
-        #print(img.shape)
         with torch.no_grad():
             output_s = snet(img)
 
@@ -190,47 +167,9 @@ def test(opt, test_clean_loader, test_bad_loader, nets, criterions, epoch):
         img.requires_grad=True
         target = target.cuda()
         at_loss = T.tensor(0.).cuda()
-        #with torch.no_grad():
-        if opt.hook:
-            #with shook as h2:
+        with torch.no_grad():
             output_s = snet(img)
-            #with thook as h1:
-            #output_t = tnet(img)
-        else:
-            output_s = snet(img)
-            #output_t = tnet(img)
         cls_loss = criterionCls(output_s, target)
-        """if opt.hook:
-            if opt.isample == "l2":
-                _cls_loss = criterionCls(output_t, target) + cls_loss
-                hk_loss = hookwisemse_imp_sample(h1, h2, _cls_loss)
-            elif opt.isample == "l1":
-                _cls_loss = criterionCls(output_t, target) + cls_loss
-                hk_loss = hookwisemse_imp_sample_l1(h1, h2, _cls_loss)                
-            elif opt.isample == "":
-                hk_loss = hookwisemse(h1, h2)
-            elif opt.isample == "at":
-                hk_loss = hookwisemse_at(h1, h2)
-            elif opt.isample == "l2f":
-                _cls_loss = criterionCls(output_t, target) + cls_loss
-                hk_loss = hookwisemse_imp_sample_fast(h1, h2, _cls_loss)
-            else:
-                assert False
-            at_loss += hk_loss.detach()"""
-
-        """if float(opt.beta3)!= 0.:
-            at3_loss = criterionAT(snet.activation3, tnet.activation3).detach() * opt.beta3
-        else:
-            at3_loss = 0.
-        if float(opt.beta2)!=0.:
-            at2_loss = criterionAT(snet.activation2, tnet.activation2).detach() * opt.beta2
-        else:
-            at2_loss = 0.
-        if float(opt.beta1)!=0.:
-            at1_loss = criterionAT(snet.activation1, tnet.activation1).detach() * opt.beta1
-        else:
-            at1_loss = 0.
-        at_loss += at3_loss + at2_loss + at1_loss"""
         at_loss = 0.
         
 
@@ -255,7 +194,8 @@ def test(opt, test_clean_loader, test_bad_loader, nets, criterions, epoch):
 
     return acc_clean, acc_bd
 
-def adjust_learning_rate_mine(optimizer, epoch, lr):
+def adjust_learning_rate_medic(optimizer, epoch, lr):
+    # Cloning requires a bit larger learning rate than normal finetuneing
     if epoch < 40:
         lr = 0.01
     elif epoch < 70:
@@ -279,7 +219,7 @@ def train(opt, teacher = None, student = None):
                             pretrained_models_path=opt.t_model,
                             n_classes=opt.num_class).to(opt.device)
     print('finished teacher model init...')
-    if opt.finetune:
+    if opt.pretrain:
         pretrained = True
     else:
         if opt.lwf or opt.hook or opt.scratch:
@@ -306,10 +246,6 @@ def train(opt, teacher = None, student = None):
                                     lr=opt.lr,
                                     weight_decay=opt.weight_decay,
                                     )
-        #optimizer = torch.optim.SGD(student.parameters(),
-        #                            lr=opt.lr,
-        #                            momentum=opt.momentum,
-        #                            weight_decay=opt.weight_decay)
     else:
         optimizer = torch.optim.SGD(student.parameters(),
                                     lr=opt.lr,
@@ -349,12 +285,9 @@ def train(opt, teacher = None, student = None):
     for epoch in range(0, opt.epochs):
         if not opt.converge:
             if opt.lwf:
-                adjust_learning_rate_mine(optimizer, epoch, opt.lr)
+                adjust_learning_rate_medic(optimizer, epoch, opt.lr)
             elif opt.hook:
-                adjust_learning_rate_mine(optimizer, epoch, opt.lr)
-                #opt.lr = 1e-2
-                #for param_group in optimizer.param_groups:
-                #    param_group['lr'] = opt.lr
+                adjust_learning_rate_medic(optimizer, epoch, opt.lr)
             else:
                 adjust_learning_rate(optimizer, epoch, opt.lr)
 
@@ -494,28 +427,14 @@ def main():
     # Prepare arguments
     opt = get_arguments().parse_args()
     config.opt = opt
-    set_trojai_model_id(opt.trojai_model_id)
     start = timer()
     global shook, thook
     shook = Hook(train=True,keepstat=opt.keepstat, nmode=opt.sbn)
     thook = Hook(keepstat=opt.keepstat, nmode=opt.tbn)
     shook.train()
     thook.eval()
-    myhash = config.name(opt)
-    print(myhash)
 
-    if opt.log_name=="auto":
-        hash_file = "hash.txt"
-    else:
-        hash_file = os.path.join("logs", opt.log_name, "hash.txt")
-        os.makedirs( os.path.join("logs", opt.log_name), exist_ok=True)
-        if not os.path.exists(hash_file):
-            open(hash_file, "w").close()
-    if opt.skip:
-        hashes = open(hash_file, "r").read().splitlines()
-        if myhash in hashes:
-            print(hash_file, "duplicate found, skipping")
-            exit()
+
     if opt.NAD:
         opt1 = copy.copy(opt)
         
@@ -630,9 +549,8 @@ def main():
 
     end = timer()
     js = {"arg": vars(opt), "ret":ret, "time":end-start}
-    with open(os.path.join("logs",opt.log_name,"Exp_log_new.txt"),"a") as fo:
+    with open(os.path.join("logs",opt.log_name,"Exp_log.txt"),"a") as fo:
         fo.write(json.dumps(js) +"\r\n")
-    open(hash_file, "a").write(myhash + "\n")
 
 if (__name__ == '__main__'):
     

@@ -249,12 +249,14 @@ class Hook:
         self.cnt = max(self.cnt, self.curr_cnt)
         if self.retain_grad:
             tensor.retain_grad()
-        if config.opt.random_noise and self.mode:
-            tensor = tensor + T.randn(tensor.shape).cuda() * 0.1
         
         return tensor
         #return tensor
 
+    def clone(self):
+        t = Hook(self.mode, self.retain_grad, self.keepstat, self.nmode)
+        t.stats = list(self.stats)
+        return t
 
 stack.append(None)
 update()
@@ -279,70 +281,6 @@ def hookwiseop(op, aggr="sum", weight = 1.):
 
 eps = 1e-5 
 
-def importance_sample_mse_loss_v1(h1, h2):
-    #h = 
-    norm = T.sqrt(T.mean(T.square(h1),dim=(1,2,3),keepdim=True))
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    
-    w = T.abs(h1)  / (norm + eps) 
-    w = w.detach()
-    loss = T.mean(w * T.abs(h1- h2))#T.mean(w * T.square(h1- h2))
-    return loss
-
-def importance_sample_mse_loss_v2(h1, h2):
-    """
-[clean]Prec@1: 79.62
-[bad]Prec@1: 9.77"""
-    ratio = 0.5
-    norm = T.sqrt(T.mean(T.square(h1),dim=(2,3),keepdim=True))
-    _, indices = T.sort(norm, dim=1)
-    indices = indices[:,:int(norm.shape[1] * ratio), :, :]
-    #print(indices.shape, norm.shape)
-    mask = T.zeros_like(norm)
-    mask.scatter_(dim=1, index= indices, src = T.ones_like(norm))
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    
-    #w = T.abs(h1)  / (norm + eps) 
-    #w = w.detach()
-    loss = T.mean(mask * T.square(h1- h2))#T.mean(w * T.square(h1- h2))
-    return loss
-
-def importance_sample_mse_loss_v3(h1, h2):
-    """
-    testing the models......
-    [clean]Prec@1: 83.31
-    [bad]Prec@1: 9.32
-    """
-    ratio = 0.5
-    norm = T.sqrt(T.mean(T.square(h1.grad),dim=(2,3),keepdim=True))
-    _, indices = T.sort(norm, dim=1)
-    indices = indices[:,:int(norm.shape[1] * ratio), :, :]
-    #print(indices.shape, norm.shape)
-    mask = T.zeros_like(norm)
-    mask.scatter_(dim=1, index= indices, src = T.ones_like(norm))
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    
-    #w = T.abs(h1)  / (norm + eps) 
-    #w = w.detach()
-    loss = T.mean(mask * T.square(h1- h2))#T.mean(w * T.square(h1- h2))
-    return loss
-
-def importance_sample_mse_loss_v4(h1, h2):
-
-    norm = T.sqrt(T.mean(T.square(h1.grad),dim=(2,3),keepdim=True))
-    _, indices = T.sort(norm, dim=1)
-
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    
-    w = T.abs(h1.grad)  / (norm + eps) 
-    w = w.detach()
-    loss = T.mean(w * T.abs(h1- h2))
-    return loss    
-
 def instance_softmax(x):
     sp = x.shape
     x = T.reshape(x, (sp[0], -1))
@@ -352,36 +290,13 @@ def instance_softmax(x):
     return x
 
 
-def instance_sq_normalize(x):
-    sp = x.shape
-    x = T.reshape(x, (sp[0], -1))
-    x = x * config.opt.imp_temp
-    x = T.square(x)
-    x = x / T.sum(x,dim=1,keepdim=True)
-    x = T.reshape(x, sp)
-    return x
-
-
 def get_non_batch_dim(h1):
     if len(h1.shape) == 2:
         return (1,)
     else:
         return (1,2,3)
-def get_importance_2_1(h1):
-    sp = get_non_batch_dim(h1)
-    norm2 = T.sqrt(T.mean(T.square(h1.grad),dim=sp,keepdim=True))
-    w2 = T.abs(h1.grad)  / (norm2 + eps) 
-    if config.opt.hook_plane != "bn":
-        h1 = Normalize(h1)
-    norm1 = T.sqrt(T.mean(T.square(h1),dim=sp,keepdim=True))
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    w1 = T.abs(h1)  / (norm1 + eps) 
-    w = T.sqrt(instance_softmax(w1) * instance_softmax(w2))
-    return w
 
-def get_importance_2_sq(h1):
-    # Remove additional normalization
+def get_importance_2(h1):
     sp = get_non_batch_dim(h1)
     # f'(y) y=cx f'(x) = cf'(y)
     h1g_norm = h1.grad 
@@ -395,75 +310,19 @@ def get_importance_2_sq(h1):
     w2 = h1g_norm
     # normalized tensor
     h1_norm = h1.nt
-    #norm1 = T.sqrt(T.mean(T.square(h1_norm),dim=sp,keepdim=True))
     #sp = list(h1.size)[2:]
     #assert len(sp) == 2
     #w1 = T.abs(h1_norm)  / (norm1 + eps) 
     w1 = h1_norm
     w =  T.sqrt(instance_softmax(w1) * instance_softmax(w2))
-    return w
-
-def get_importance_2_abs(h1):
-    sp = get_non_batch_dim(h1)
-    # f'(y) y=cx f'(x) = cf'(y)
-    h1g_norm = h1.grad 
-    if config.opt.keepstat:
-        h1g_norm *= h1.ntc.get_std()
-        h1_norm = h1.nt
-    else:
-        h1_norm = h1
-    norm2 = T.mean(T.abs(h1g_norm),dim=sp,keepdim=True)
-    w2 = T.abs(h1g_norm)  / (norm2 + eps) 
-    # normalized tensor
-    
-    norm1 = T.mean(T.abs(h1_norm),dim=sp,keepdim=True)
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    w1 = T.abs(h1_norm)  / (norm1 + eps) 
-    w = T.sqrt(instance_softmax(w1) * instance_softmax(w2))
-    return w
+    return w, instance_softmax(w1), instance_softmax(w2)
 
 
-get_importance_2 = get_importance_2_sq
-
-def get_importance_3_fast(h1):
-    sp = get_non_batch_dim(h1)
-    norm2 = T.sqrt(T.mean(T.square(h1.grad), dim=sp, keepdim=True))
-    w2 = T.abs(h1.grad) / (norm2 + eps)
-    if config.opt.hook_plane != "bn":
-        h1 = Normalize(h1)
-    norm1 = T.sqrt(T.mean(T.square(h1), dim=sp, keepdim=True))
-    #sp = list(h1.size)[2:]
-    #assert len(sp) == 2
-    w1 = T.abs(h1) / (norm1 + eps)
-    w = T.sqrt(instance_sq_normalize(w1) * instance_sq_normalize(w2))
-    return w
-
-def get_importance_old(h1):
-    norm2 = T.sqrt(T.mean(T.square(h1.grad),dim=(1,2,3),keepdim=True))
-    w2 = T.abs(h1.grad)  / (norm2 + eps) 
-    w = instance_softmax(w2)
-    return w
-
-def get_importance_old(h1):
-    norm2 = T.sqrt(T.mean(T.square(h1.grad),dim=(1,2,3),keepdim=True))
-    w2 = T.abs(h1.grad)  / (norm2 + eps) 
-    w = instance_softmax(w2)
-    return w
-
-def get_importance_inv(h1):
-    #High Freq Filter, unreasonable!
-    t = 1. / (T.abs(h1.grad) + eps)
-    norm2 = T.sqrt(T.mean(T.square(t),dim=(1,2,3),keepdim=True))
-    w2 = T.abs(t)  / (norm2 + eps) 
-    w = instance_softmax(w2)
-    return w
-
-def importance_sample_mse_loss_v5(h1, h2):
+def importance_sample_mse_loss(h1, h2):
     #h = 
     #h2 = Normalize(h2)    
     sp = get_non_batch_dim(h1)
-    w = get_importance_2(h1)#T.sqrt(get_importance(h1) * get_importance(h2))
+    w, _, _ = get_importance_2(h1)#T.sqrt(get_importance(h1) * get_importance(h2))
     #w *= config.opt.hookweight
     #w = instance_softmax(w)
     w = w.detach()
@@ -473,46 +332,17 @@ def importance_sample_mse_loss_v5(h1, h2):
         loss = T.mean(T.sum(w * T.square(h1- h2), dim=sp))
     return loss    
 
-def importance_sample_mse_loss_v6(h1, h2):
-    #h = 
-    #h2 = Normalize(h2)    
-    sp = get_non_batch_dim(h1)
-    w = get_importance_2(h1)#T.sqrt(get_importance(h1) * get_importance(h2))
-    #w *= config.opt.hookweight
-    #w = instance_softmax(w)
-    w = w.detach()
-    if config.opt.norml2:
-        loss = T.mean(T.sum(w * T.square((h1- h2)/h1.ntc.get_std()), dim=sp))#T.mean(w * T.square(h1- h2))
-    else:
-        loss = T.mean(T.sum(w * T.square(h1- h2), dim=sp))
-    return loss    
+from at import AT
+_at = AT(2)
+def attention_mse_loss(h1, h2):
+    return _at(h1,h2) *1000
 
-def importance_sample_mse_loss_l1(h1, h2):
-    #h = 
-    #h2 = Normalize(h2)    
-    sp = get_non_batch_dim(h1)
-    w = get_importance_2(h1)#T.sqrt(get_importance(h1) * get_importance(h2))
-    #w *= config.opt.hookweight
-    #w = instance_softmax(w)
-    w = w.detach()
-    loss = T.mean(T.sum(w * T.abs(h1- h2), dim=sp))#T.mean(w * T.square(h1- h2))
-    return loss    
+hookwisemse = hookwiseop(F.mse_loss)
+hookwisemse_imp_sample = hookwiseop(importance_sample_mse_loss)
+hookwisemse_at = hookwiseop(attention_mse_loss)
 
 
-def importance_sample_mse_loss_fast(h1, h2):
-    #h =
-    #h2 = Normalize(h2)
-    sp = get_non_batch_dim(h1)
-    # T.sqrt(get_importance(h1) * get_importance(h2))
-    w = get_importance_3_fast(h1)
-    #w *= config.opt.hookweight
-    #w = instance_softmax(w)
-    w = w.detach()
-    # T.mean(w * T.square(h1- h2))
-    loss = T.mean(T.sum(w * T.square(h1 - h2), dim=sp))
-    return loss
-
-importance_sample_mse_loss = importance_sample_mse_loss_v5
+### Visualization of importance
 
 def rescale1(x):
     u = T.max(x)
@@ -573,14 +403,3 @@ def visualize_pattern(h1_trojan :Hook, h1_normal:Hook, path="./imp_intro",choose
     diff_imp = T.concat([diff,w], axis=2)
     save_map_from_channel(diff_imp, os.path.join(path, "diff_imp"))
     #save_map_from_channel(w,os.path.join(path, "imp_mask"))
-
-from at import AT
-_at = AT(2)
-def attention_mse_loss(h1, h2):
-    return _at(h1,h2) *1000
-
-hookwisemse = hookwiseop(F.mse_loss)
-hookwisemse_imp_sample = hookwiseop(importance_sample_mse_loss)
-hookwisemse_imp_sample_l1 = hookwiseop(importance_sample_mse_loss_l1)
-hookwisemse_imp_sample_fast = hookwiseop(importance_sample_mse_loss_fast)
-hookwisemse_at = hookwiseop(attention_mse_loss)

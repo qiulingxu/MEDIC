@@ -21,62 +21,73 @@ def get_arguments():
     parser.add_argument('--num_class', type=int, default=10, help='number of classes')
     parser.add_argument('--ratio', type=float, default=0.05, help='ratio of training data')
 
-    parser.add_argument('--beta1', type=int, default=0, help='beta of low layer')
-    parser.add_argument('--beta2', type=int, default=0, help='beta of middle layer')
-    parser.add_argument('--beta3', type=int, default=5000, help='beta of high layer')
 
-    parser.add_argument('--p', type=float, default=2.0, help='power for AT')
     parser.add_argument('--threshold_clean', type=float, default=70.0, help='threshold of save weight')
     parser.add_argument('--threshold_bad', type=float, default=90.0, help='threshold of save weight')
     parser.add_argument('--cuda', type=int, default=1)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--save', type=int, default=1)
-    parser.add_argument("--rw",action="store_true", help="random directional update")
-    parser.add_argument("--MCR",action="store_true")
-
-    parser.add_argument("--lwf", action="store_true")
-    parser.add_argument("--scratch", action="store_true")
-    parser.add_argument('--li',action = "store_true")
 
     # others
     parser.add_argument('--seed', type=int, default=2, help='random seed')
     parser.add_argument('--note', type=str, default='try', help='note for this run')
+    parser.add_argument("--converge",action="store_true", help='Apply cosine annealing to learning rate.')
 
     # net and dataset choosen
     parser.add_argument('--data_name', type=str, default='CIFAR10', help='name of dataset')
     parser.add_argument('--t_name', type=str, default='WRN-16-1', help='name of teacher')
     parser.add_argument('--s_name', type=str, default='WRN-16-1', help='name of student')
-    parser.add_argument("--clone_start",type=int,default=0)
-    parser.add_argument("--clone_end",type=int,default=100)
+    parser.add_argument("--clone_start",type=int,default=0, help = 'starting epoch for cloning')
+    parser.add_argument("--clone_end",type=int,default=100, help='ending epoch for cloning')
 
-    parser.add_argument("--hook", action="store_true")
-    parser.add_argument("--hookweight",type=float,default=10)
-    parser.add_argument("--nobndiv",action="store_true")
-    parser.add_argument("--hook-plane", type=str, default="conv", choices=["conv","bn","conv+bn", "conv+bn+dense"])
-    parser.add_argument("--imp_temp", type=float, default=1.0) 
-    parser.add_argument("--imp_lambda",type=float, default=10.)
-    parser.add_argument("--keepstat", action = "store_true")
-    parser.add_argument("--normgrad", action = "store_true")
-    parser.add_argument("--norml2", action = "store_true")
-    parser.add_argument("--isample",type=str,default="", choices=["", "l2", "at", "l2f", "l1"])
-    parser.add_argument("--sbn", type=str, default="batch")
-    parser.add_argument("--tbn", type=str, default="exact")
+
+    # MEDIC parameter
+    parser.add_argument("--hook", action="store_true",
+                        help="Enable the MEDIC function, it basically adds hooks to internal layers' output for loss calculation.")
+    parser.add_argument("--hookweight",type=float,default=10, help="Weight of cloning loss. It is the lambda in the paper.")
+    parser.add_argument("--hook-plane", type=str, default="conv",
+                        choices=["conv","bn","conv+bn", "conv+bn+dense"],
+                        help="Which layers to add cloning loss to.")
+    parser.add_argument("--imp_temp", type=float, default=1.0,
+                        help="Temperature of the softmax function in the MEDIC loss.")
+    parser.add_argument("--keepstat", action = "store_true",
+                        help='Maintaining the statistics for intermediate layers. This is required for estimating the mean and variance of intermediate layers.')
+    parser.add_argument("--norml2", action = "store_true",
+                        help = 'Normalize the neurons outputs by mean and standard deviation')
+    parser.add_argument("--isample",type=str,default="", choices=["", "l2",],
+                        help="Which importance sampling method to use for MEDIC loss.")
+    parser.add_argument("--sbn", type=str, default="batch",
+                        help ='Which estimation of statistics to use for estimating the mean and variance of intermediate layers from student model. Batch means running estimation. exact means using per-batch estimation.')
+    parser.add_argument("--tbn", type=str, default="exact",
+                        help ='Which estimation of statistics to use for estimating the mean and variance of intermediate layers from teacher model. Batch means running estimation. exact means using per-batch estimation.'))
+
     
-    parser.add_argument("--finetune", action="store_true")
-    parser.add_argument("--Finetune", action="store_true")
-    parser.add_argument("--NAD",action="store_true")
-    parser.add_argument("--fineprune",action="store_true")
-    parser.add_argument("--prune-num",type=int, default=32)
-    parser.add_argument("--converge",action="store_true")
-    parser.add_argument("--random_noise",action="store_true")
-    parser.add_argument("--log_name", default = "dev")
-    parser.add_argument("--ANP", action = "store_true")
+
+    ## Different removal methods, choices are likely exclusive
+    parser.add_argument("--MCR",action="store_true")
+    parser.add_argument("--lwf", action="store_true", help="Apply knowledge distillation to clean the backdoor model.")
+    parser.add_argument("--scratch", action="store_true", help="Train from scratch to remove any backdoor model.")    
+    parser.add_argument("--pretrain", action="store_true", help='Starts from backdoor teacher model.')
+    parser.add_argument("--Finetune", action="store_true", help='Apply finetuning to clean the backdoor model.')
+
+    # NAD parameter
+    parser.add_argument("--NAD",action="store_true", help='Apply NAD to clean the backdoor model.')
+    parser.add_argument('--beta1', type=int, default=0, help='beta of low layer')
+    parser.add_argument('--beta2', type=int, default=0, help='beta of middle layer')
+    parser.add_argument('--beta3', type=int, default=5000, help='beta of high layer')
+    parser.add_argument('--p', type=float, default=2.0, help='power for AT')
+    
+
+    parser.add_argument("--fineprune",action="store_true", help='Apply fineprune to clean the backdoor model.')
+    parser.add_argument("--prune-num",type=int, default=32, help='Number of filters to prune in fineprune.')
+    parser.add_argument("--ANP", action = "store_true", help='Apply ANP to clean the backdoor model.')
+
+
+    parser.add_argument("--log_name", default = "dev")    
     parser.add_argument("--case",default = "")
-    parser.add_argument("--skip",action="store_true")
-    parser.add_argument("--trial_id",default=0)
-    parser.add_argument("--version",default=1)
-    parser.add_argument("--disaug",action="store_true")
-    #parser.add_argument("--hook_")
+
+    # Used for exhibiting the strong and fragile backdoor effects.
+    parser.add_argument("--disaug",action="store_true", help='disable applying augmentations')
 
     # backdoor attacks
     parser.add_argument('--inject_portion', type=float, default=0.1, help='ratio of backdoor samples')
