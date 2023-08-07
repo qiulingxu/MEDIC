@@ -37,11 +37,17 @@ Our code is based the structure from https://github.com/bboylyg/NAD.
 
 We include the backdoor attack training and evaluating.
 
-We test the code on Ubuntu 18.04, Pytorch 1.7.1.
+Dependency:
+    opencv-python
+    pandas
+    matplotlib
+    scipy
+    tqdm
+    torchattacks
+We test the code on Ubuntu 22.04, Pytorch 2.0.1, GTX 4090.
 
 We require the specific dependent of package TrojAI for testing on Trojai model, https://pages.nist.gov/trojai/.
-
-If you don't have that need, please feel free to comment out the trojai import.
+If you have that need, please feel free to uncomment the trojai import.
 
 # Paper and citation
 

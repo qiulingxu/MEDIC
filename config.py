@@ -59,7 +59,7 @@ def get_arguments():
     parser.add_argument("--sbn", type=str, default="batch",
                         help ='Which estimation of statistics to use for estimating the mean and variance of intermediate layers from student model. Batch means running estimation. exact means using per-batch estimation.')
     parser.add_argument("--tbn", type=str, default="exact",
-                        help ='Which estimation of statistics to use for estimating the mean and variance of intermediate layers from teacher model. Batch means running estimation. exact means using per-batch estimation.'))
+                        help ='Which estimation of statistics to use for estimating the mean and variance of intermediate layers from teacher model. Batch means running estimation. exact means using per-batch estimation.')
 
     
 
@@ -133,3 +133,5 @@ def name(opt):
     name = "#C{}#T{}{}{}".format(opt.case,opt.trial_id,Method, Conf)
     
     return name
+
+opt = get_arguments().parse_args()

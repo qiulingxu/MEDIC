@@ -1,8 +1,11 @@
+import faulthandler
+faulthandler.enable()
 from models.selector import *
 from utils.util import *
 from data_loader import get_test_loader, get_backdoor_loader
 from config import get_arguments
-
+import torchattacks
+import torch as T
 
 def train_step(opt, train_loader, nets, optimizer, criterions, epoch):
     cls_losses = AverageMeter()
@@ -14,12 +17,21 @@ def train_step(opt, train_loader, nets, optimizer, criterions, epoch):
     criterionCls = criterions['criterionCls']
     snet.train()
 
-    for idx, (img, target) in enumerate(train_loader, start=1):
+    for idx, (img, target, is_inject) in enumerate(train_loader, start=1):
         if opt.cuda:
             img = img.cuda()
             target = target.cuda()
+            #print(img.size())
+            if opt.clean_label:
+                is_inject = is_inject.cuda()
+                #print(is_inject)
+                img_adv = atk(img, target)
+                tlabel = T.zeros_like(target).fill_(opt.target_label)
+                mask = T.logical_and(T.eq(target,tlabel),is_inject).reshape((-1,1,1,1))
+                #print(mask)
+                img = T.where(mask, img_adv, img)
 
-        _, _, _, output_s = snet(img)
+        output_s = snet(img)
 
         cls_loss = criterionCls(output_s, target)
 
@@ -53,7 +65,7 @@ def test(opt, test_clean_loader, test_bad_loader, nets, criterions, epoch):
         target = target.cuda()
 
         with torch.no_grad():
-            _, _, _, output_s = snet(img)
+            output_s = snet(img)
 
         prec1, prec5 = accuracy(output_s, target, topk=(1, 5))
         top1.update(prec1.item(), img.size(0))
@@ -71,7 +83,7 @@ def test(opt, test_clean_loader, test_bad_loader, nets, criterions, epoch):
         target = target.cuda()
 
         with torch.no_grad():
-            _, _, _, output_s = snet(img)
+            output_s = snet(img)
             cls_loss = criterionCls(output_s, target)
 
         prec1, prec5 = accuracy(output_s, target, topk=(1, 5))
@@ -119,15 +131,25 @@ def train(opt):
         criterionCls = nn.CrossEntropyLoss().cuda()
     else:
         criterionCls = nn.CrossEntropyLoss()
+    
+    if opt.clean_label:
+        global atk
+        #atk = torchattacks.PGDL2(student, eps=300, alpha=10, steps=30)
+        if opt.dataset == "Trojai":
+            atk = torchattacks.PGD(student, eps=2/255.,
+                                   alpha=0.5/255., steps=10)
+        else:
+            atk = torchattacks.PGD(student, eps=16/255., alpha=2/255., steps=10)
 
     print('----------- DATA Initialization --------------')
     train_loader = get_backdoor_loader(opt)
     test_clean_loader, test_bad_loader = get_test_loader(opt)
-
+    if opt.converge:
+        schedule=T.optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.epochs)
     print('----------- Train Initialization --------------')
     for epoch in range(1, opt.epochs):
-
-        _adjust_learning_rate(optimizer, epoch, opt.lr)
+        if not opt.converge:
+            _adjust_learning_rate(optimizer, epoch, opt.lr)
 
         # train every epoch
         criterions = {'criterionCls': criterionCls}
@@ -139,7 +161,6 @@ def train(opt):
 
         # remember best precision and save checkpoint
         if opt.save:
-            os.makedirs(opt.checkpoint_root,exist_ok=True)
             is_best = acc_bad[0] > opt.threshold_bad
             opt.threshold_bad = min(acc_bad[0], opt.threshold_bad)
 
@@ -154,22 +175,35 @@ def train(opt):
                 'best_bad_acc': best_bad_acc,
                 'optimizer': optimizer.state_dict(),
             }, is_best, opt.checkpoint_root, s_name)
+        if opt.converge:
+            schedule.step()            
 
 
 def _adjust_learning_rate(optimizer, epoch, lr):
-    if epoch < 21:
-        lr = lr
-    elif epoch < 30:
-        lr = 0.01 * lr
+    if config.opt.converge:
+        if epoch < 40:
+            lr = lr
+        elif epoch < 70:
+            lr = 0.01 * lr
+        else:
+            lr = 0.0009        
     else:
-        lr = 0.0009
-    print('epoch: {}  lr: {:.4f}'.format(epoch, lr))
+        if epoch < 21:
+            lr = lr
+        elif epoch < 30:
+            lr = 0.01 * lr
+        else:
+            lr = 0.0009
+        print('epoch: {}  lr: {:.4f}'.format(epoch, lr))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
 def main():
     # Prepare arguments
     opt = get_arguments().parse_args()
+    #if opt.converge:
+    #    opt.epochs=100
+    config.opt = opt
     train(opt)
 
 if (__name__ == '__main__'):

@@ -36,11 +36,7 @@ preprocess = transforms.Compose([totensor])
 true_preprocess = transforms.Compose([topil, transforms.RandomCrop(32, padding=4),
         transforms.RandomRotation(3),
         transforms.RandomHorizontalFlip(),totensor])
-"""[        
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomRotation(3),
-        transforms.RandomHorizontalFlip(),
-        totensor])"""
+
 deprocess = topil    
 #preprocess = transforms.Compose([transforms.RandomHorizontalFlip(), *preprocess.transforms])
 mixer = HalfMixer()

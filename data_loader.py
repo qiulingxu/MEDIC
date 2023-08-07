@@ -1,4 +1,4 @@
-from trojai_interface.round2.datasets import generate_dataset
+#from trojai_interface.round2.datasets import generate_dataset
 from composite.utils.mixer import HalfMixer
 import re
 from torchvision import transforms, datasets
