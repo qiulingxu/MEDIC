@@ -22,12 +22,12 @@ Our model is capable of training most of models we used. We also provide pre-tra
 Here are the commands for training a backdoor model. 
 
 | Backdoor Models      | Training Commands |
-| ----------- | ----------- | ----------- | 
+| ----------- | ----------- |
 | Clean Label | python train_badnet.py --inject_portion=0.15 --checkpoint_root="./weight/cleanlabel" --clean_label  --epochs=100 --target_type="cleanLabel" |
 | SIG | python train_badnet.py --inject_portion=0.1 --checkpoint_root="./weight/sig"  --epochs=30 --target_type="cleanLabel" --trigger_type="signalTrigger" |
 | Warp | python train_badnet.py --inject_portion=0.3 --checkpoint_root="./weight/warp"  --epochs=30  --trigger_type="warpTrigger" |
 | Adaptive 2 | python train_adaptive.py --inject_portion=0.05 --checkpoint_root="./weight/adapt" --target_label=0 |
-| BAD NET | python train_badnet.py --checkpoint_root="./weight/badnet"  --epochs=30 |
+| BADNET | python train_badnet.py --checkpoint_root="./weight/badnet"  --epochs=30 |
 
 
 ## Pre-trained Backdoor Models
