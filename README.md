@@ -1,20 +1,18 @@
-# MEDIC: Machine Learning Backdoor Trigger Removal
+# MEDIC: Remove AI Backdoors via Cloning
 
 MEDIC is a cloning based backdoor removal method. Different from fine-tuning based method, we retrain the model from scratch. We use layer-wise cloning to recover the clean accuracy and use importance to reduce the unnative behaviors. MEDIC exhibits strong advantage over strong backdoors that are deep in the model and harder to remove, e.g. the adversarial trained ones with data augmentation.
 
-We compare our method over 5 baselines and 9 types of backdoor attack. The datasets includes CIFAR-10 and large-scale road dataset.
-We release different backdoor models from 6 different baselines and 5 different removal methods.
+![Framework Introduction](./Intro.png)
+
+We compare our method over 5 baselines and 9 types of backdoor attack. The datasets includes CIFAR-10 and large-scale road dataset. 
+We release different backdoor models from 6 different baselines and 5 different removal methods. We include codes for training, evaluating, and comparing the results.
 
 Here is an example of results, where all methods are aligned to roughly similar accuracy.
 
 ![Comparison of ASR](./ASR.png)
 
-# Supports
-    Our scripts support training and removal on the baselines we showed in the paper except for TrojAI models including filter and polygon, which requires some time of configuration.
-
-
 # Tutorial
-
+Our scripts support training and removal on the baselines we showed in the paper except for TrojAI models including filter and polygon, which requires some time of configuration.
 ## Training
 
 Our model is capable of training most of models we used. We also provide pre-trained backdoor models for testing purpose.
@@ -59,9 +57,7 @@ Use clean label attack as an example, it becomes
 
 python main.py --hook  --converge --beta3=0 --beta2=0 --beta1=0 --isample='l2' --epochs=60 --lr=0.01  --ratio=0.05 --keepstat --norml2 --hookweight=10  --hook-plane="conv+bn" --imp_temp=5 --s_model="backdoor_models\cleanlabel\WRN-16-1-S-model_best.pth.tar" --t_model="backdoor_models\cleanlabel\WRN-16-1-S-model_best.pth.tar" 
 
-
-
-# Dependency
+## Dependency
 
 Our code is based the structure from https://github.com/bboylyg/NAD.
 
