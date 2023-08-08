@@ -11,6 +11,8 @@ Here is an example of results, where all methods are aligned to roughly similar 
 
 ![Comparison of ASR](./ASR.png)
 
+A video introduction can be found [here](https://www.youtube.com/watch?v=dhIBzpDWNX0).
+
 # Tutorial
 Our scripts support training and removal on the baselines we showed in the paper except for TrojAI models including filter and polygon, which requires some time of configuration.
 ## Training
