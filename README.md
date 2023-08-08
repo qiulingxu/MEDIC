@@ -1,35 +1,65 @@
 # MEDIC: Machine Learning Backdoor Trigger Removal
 
-MEDIC is a retraining based backdoor removal method. It uses layer-wise cloning with importance. It exhibits strong advantage over strong backdoors, e.g. the adversarial trained ones with data augmentation.
+MEDIC is a cloning based backdoor removal method. Different from fine-tuning based method, we retrain the model from scratch. We use layer-wise cloning to recover the clean accuracy and use importance to reduce the unnative behaviors. MEDIC exhibits strong advantage over strong backdoors that are deep in the model and harder to remove, e.g. the adversarial trained ones with data augmentation.
 
-We compare our method over 5 baselines and 9 types of backdoor attack. The datasets includes CIFAR-10 and large-scale KIWICITY.
+We compare our method over 5 baselines and 9 types of backdoor attack. The datasets includes CIFAR-10 and large-scale road dataset.
+We release different backdoor models from 6 different baselines and 5 different removal methods.
 
 Here is an example of results, where all methods are aligned to roughly similar accuracy.
 
 ![Comparison of ASR](./ASR.png)
 
 # Supports
-    Our scripts support training and removal on the baselines we mentioned except TrojAI models including filter and polygon, which requires some time of configuration.
+    Our scripts support training and removal on the baselines we showed in the paper except for TrojAI models including filter and polygon, which requires some time of configuration.
 
-# Backdoor Models
 
-> TODO: Upload and release the model used in the paper.
+# Tutorial
 
-# Commands
+## Training
 
-## Step 1
+Our model is capable of training most of models we used. We also provide pre-trained backdoor models for testing purpose.
 
-Training a backdoor model. 
+Here are the commands for training a backdoor model. 
 
-Use cleanlabel attack as example:
+| Backdoor Models      | Training Commands |
+| ----------- | ----------- | ----------- | 
+| Clean Label | python train_badnet.py --inject_portion=0.15 --checkpoint_root="./weight/cleanlabel" --clean_label  --epochs=100 --target_type="cleanLabel" |
+| SIG | python train_badnet.py --inject_portion=0.1 --checkpoint_root="./weight/sig"  --epochs=30 --target_type="cleanLabel" --trigger_type="signalTrigger" |
+| Warp | python train_badnet.py --inject_portion=0.3 --checkpoint_root="./weight/warp"  --epochs=30  --trigger_type="warpTrigger" |
+| Adaptive 2 | python train_adaptive.py --inject_portion=0.05 --checkpoint_root="./weight/adapt" --target_label=0 |
+| BAD NET | python train_badnet.py --checkpoint_root="./weight/badnet"  --epochs=30 |
 
-CUDA_VISIBLE_DEVICES=$DEVICE$ python train_badnet.py --inject_portion=0.15 --checkpoint_root="./weight/cleanlabel" --clean_label  --epochs=100 --target_type="cleanLabel"
+
+## Pre-trained Backdoor Models
+
+Here are the pre-trained models
+We released the model used for evaluation in the paper including the following.
+
+| Backdoor Models      | Model Path | Model Specific Options |
+| ----------- | ----------- | ----------- | 
+| Adaptive Attack 1 | backdoor_models\adaptive_attack_1\composite_cifar_resnet.pth | --trigger_type='Composite' --target_label=2 |
+| Adaptive Attack 2 | backdoor_models\adaptive_attack_2\WRN-16-1-S-model_best.pth.tar | --trigger_type='Adaptive' --s_name=WRN-16-1N --t_name=WRN-16-1N --target_label=0 |
+| Warp Attack | backdoor_models\warp\WRN-16-1-S-model_best.pth.tar | --trigger_type='warpTrigger' --s_name=WRN-16-1 --t_name=WRN-16-1 --target_label=0 |
+| Clean Label Attack | backdoor_models\cleanlabel\WRN-16-1-S-model_best.pth.tar | No additional options |
+| BadNet | backdoor_models\badnet\WRN-16-1-S-model_best.pth.tar | No additional options |
+| Reflection Attack | backdoor_models\reflection\WRN-16-1-S-model_best.pth.tar | --trigger_type='ReflectionTrigger' |
+
+Note that to correctly evaluate these model, you have to add the corresponding options to the program, like trigger type or target label. Otherwise the result will be wrong. If you find the results way off, that is probably the reason.
+
 
 ## Step 2 
 
-Remove Trigger using Medic, clean label attack as an example.
 
-Python main.py --hook  --converge --beta3=0 --beta2=0 --beta1=0 --isample='l2' --epochs={} --lr=0.01  --ratio=0.05 --keepstat --norml2 --hookweight=10  --hook-plane="conv+bn" --imp_temp=5 --s_model="./weight/cleanlabel/WRN-16-1-S-model_best.pth.tar" --t_model=./weight/cleanlabel/WRN-16-1-S-model_best.pth.tar"
+
+Remove Trigger using Medic, clean label attack as an example. You need to fill in the three blanks based on the model you use.
+
+python main.py --hook  --converge --beta3=0 --beta2=0 --beta1=0 --isample='l2' --epochs=60 --lr=0.01  --ratio=0.05 --keepstat --norml2 --hookweight=10  --hook-plane="conv+bn" --imp_temp=5 --s_model="{MODEL_PATH}" --t_model="{MODEL_PATH}" {MODEL_SPECIFIC_OPTIONS_HERE}
+
+Use clean label attack as an example, it becomes
+
+python main.py --hook  --converge --beta3=0 --beta2=0 --beta1=0 --isample='l2' --epochs=60 --lr=0.01  --ratio=0.05 --keepstat --norml2 --hookweight=10  --hook-plane="conv+bn" --imp_temp=5 --s_model="backdoor_models\cleanlabel\WRN-16-1-S-model_best.pth.tar" --t_model="backdoor_models\cleanlabel\WRN-16-1-S-model_best.pth.tar" 
+
+
 
 # Dependency
 
@@ -38,12 +68,15 @@ Our code is based the structure from https://github.com/bboylyg/NAD.
 We include the backdoor attack training and evaluating.
 
 Dependency:
-    opencv-python
-    pandas
-    matplotlib
-    scipy
-    tqdm
-    torchattacks
+- opencv-python
+- pandas
+- matplotlib
+- scipy
+- tqdm
+- torchattacks
+
+You can use pip install [depedency] to install these packages.
+
 We test the code on Ubuntu 22.04, Pytorch 2.0.1, GTX 4090.
 
 We require the specific dependent of package TrojAI for testing on Trojai model, https://pages.nist.gov/trojai/.
